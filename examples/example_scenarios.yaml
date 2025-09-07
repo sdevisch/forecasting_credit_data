@@ -1,0 +1,20 @@
+scenarios:
+  - name: baseline
+    n_borrowers: 8000
+    months: 6
+    macro_adjustments:
+      unemployment_add: 0.0
+      hpi_yoy_add: 0.0
+  - name: adverse
+    n_borrowers: 8000
+    months: 6
+    macro_adjustments:
+      unemployment_add: 1.5
+      hpi_yoy_add: -2.0
+  - name: severe
+    n_borrowers: 8000
+    months: 6
+    macro_adjustments:
+      unemployment_add: 3.0
+      hpi_yoy_add: -5.0
+output_dir: data/scenario_runs
