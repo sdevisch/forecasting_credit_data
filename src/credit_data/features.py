@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+from typing import List, Tuple
+
 import pandas as pd
 
 
-def add_lags(df: pd.DataFrame, by: list[str], date_col: str, cols: list[str], lags: list[int]) -> pd.DataFrame:
+def add_lags(df: pd.DataFrame, by: List[str], date_col: str, cols: List[str], lags: List[int]) -> pd.DataFrame:
+    """Add lagged columns for specified numeric columns.
+
+    Parameters:
+    - df: panel DataFrame
+    - by: keys to group by (e.g., ["loan_id"])
+    - date_col: temporal column name (e.g., "asof_month")
+    - cols: columns to lag
+    - lags: list of lag sizes in months
+    """
     out = df.sort_values(by + [date_col]).copy()
     for c in cols:
         for l in lags:
@@ -11,7 +22,8 @@ def add_lags(df: pd.DataFrame, by: list[str], date_col: str, cols: list[str], la
     return out
 
 
-def add_leads(df: pd.DataFrame, by: list[str], date_col: str, cols: list[str], leads: list[int]) -> pd.DataFrame:
+def add_leads(df: pd.DataFrame, by: List[str], date_col: str, cols: List[str], leads: List[int]) -> pd.DataFrame:
+    """Add lead columns for specified columns (e.g., labels like default_flag)."""
     out = df.sort_values(by + [date_col]).copy()
     for c in cols:
         for L in leads:
@@ -19,7 +31,8 @@ def add_leads(df: pd.DataFrame, by: list[str], date_col: str, cols: list[str], l
     return out
 
 
-def add_rolling(df: pd.DataFrame, by: list[str], date_col: str, cols: list[str], windows: list[int]) -> pd.DataFrame:
+def add_rolling(df: pd.DataFrame, by: List[str], date_col: str, cols: List[str], windows: List[int]) -> pd.DataFrame:
+    """Add rolling mean and std for specified columns and windows."""
     out = df.sort_values(by + [date_col]).copy()
     for c in cols:
         g = out.groupby(by)[c]
@@ -29,7 +42,11 @@ def add_rolling(df: pd.DataFrame, by: list[str], date_col: str, cols: list[str],
     return out
 
 
-def add_interactions(df: pd.DataFrame, interactions: list[tuple[str, str, str]]) -> pd.DataFrame:
+def add_interactions(df: pd.DataFrame, interactions: List[Tuple[str, str, str]]) -> pd.DataFrame:
+    """Add interaction terms as product of pairs of columns.
+
+    interactions: list of tuples (col_a, col_b, new_name)
+    """
     out = df.copy()
     for a, b, name in interactions:
         out[name] = out[a] * out[b]
