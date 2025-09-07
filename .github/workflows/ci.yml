@@ -43,3 +43,7 @@ jobs:
         run: |
           latest=$(ls -dt data/processed/sample_multi_* | head -1)
           python scripts/run_cecl_multiproduct.py --input "$latest"
+
+      - name: Run unit tests
+        run: |
+          pytest -q
