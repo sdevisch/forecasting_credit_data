@@ -11,6 +11,8 @@ from credit_data.macro import get_macro_data
 from credit_data.generator import generate_borrowers, generate_loans, _simulate_card_panel
 from credit_data.products.auto import generate_auto_loans, simulate_auto_panel
 from credit_data.products.personal import generate_personal_loans, simulate_personal_panel
+from credit_data.products.mortgage import generate_mortgage_loans, simulate_mortgage_panel
+from credit_data.products.heloc import generate_heloc_loans, simulate_heloc_panel
 
 
 def main() -> None:
@@ -29,15 +31,19 @@ def main() -> None:
     print("Generating borrowers ...")
     borrowers = generate_borrowers(args.n_borrowers, seed=args.seed)
 
-    print("Generating loans for card, auto, personal ...")
+    print("Generating loans for card, auto, personal, mortgage, heloc ...")
     card_loans = generate_loans(borrowers, seed=args.seed)
     auto_loans = generate_auto_loans(borrowers, seed=args.seed)
     personal_loans = generate_personal_loans(borrowers, seed=args.seed)
+    mortgage_loans = generate_mortgage_loans(borrowers, seed=args.seed)
+    heloc_loans = generate_heloc_loans(borrowers, seed=args.seed)
 
     print("Simulating monthly panels ...")
     card_panel = _simulate_card_panel(card_loans, macro, months=args.months, seed=args.seed)
     auto_panel = simulate_auto_panel(auto_loans, macro, months=args.months, seed=args.seed)
     personal_panel = simulate_personal_panel(personal_loans, macro, months=args.months, seed=args.seed)
+    mortgage_panel = simulate_mortgage_panel(mortgage_loans, macro, months=args.months, seed=args.seed)
+    heloc_panel = simulate_heloc_panel(heloc_loans, macro, months=args.months, seed=args.seed)
 
     ts = datetime.now().strftime("sample_multi_%Y%m%d_%H%M%S")
     out_path = os.path.join(args.out_dir, ts)
@@ -48,9 +54,14 @@ def main() -> None:
     card_loans.to_parquet(os.path.join(out_path, "loans_card.parquet"))
     auto_loans.to_parquet(os.path.join(out_path, "loans_auto.parquet"))
     personal_loans.to_parquet(os.path.join(out_path, "loans_personal.parquet"))
+    mortgage_loans.to_parquet(os.path.join(out_path, "loans_mortgage.parquet"))
+    heloc_loans.to_parquet(os.path.join(out_path, "loans_heloc.parquet"))
+
     card_panel.to_parquet(os.path.join(out_path, "loan_monthly_card.parquet"))
     auto_panel.to_parquet(os.path.join(out_path, "loan_monthly_auto.parquet"))
     personal_panel.to_parquet(os.path.join(out_path, "loan_monthly_personal.parquet"))
+    mortgage_panel.to_parquet(os.path.join(out_path, "loan_monthly_mortgage.parquet"))
+    heloc_panel.to_parquet(os.path.join(out_path, "loan_monthly_heloc.parquet"))
 
     print("Done.")
 
