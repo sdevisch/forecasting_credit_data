@@ -114,66 +114,133 @@ def _simulate_card_panel(
     m = len(panel_months)
 
     n = len(loans)
-    # Simple utilization dynamics and PD model
-    # Base hazard increases with unemployment and lower fico
     fico = loans["underwriting_fico"].to_numpy()
 
     # Align macro series to panel months
     macro_aligned = (
         macro.set_index("asof_month").reindex(panel_months).ffill().bfill()
     )
-    unemployment = macro_aligned["unemployment"].to_numpy().reshape(1, m)
+    unemp = macro_aligned["unemployment"].to_numpy()
+    unemp_dev = unemp - unemp.mean()
 
-    base_pd = (0.002 + 0.00003 * (720 - fico).clip(0)[:, None]) * (1.0 + 0.08 * (unemployment - unemployment.mean()))
-    base_pd = np.clip(base_pd, 0.0005, 0.05)
-
-    # Simulate defaults
-    u = rs.random((n, m))
-    default_matrix = (u < base_pd).astype(np.int8)
-    default_cum = default_matrix.cumsum(axis=1)
-    # Once defaulted, stay defaulted
-    defaulted = (default_cum > 0).astype(np.int8)
-
-    # EAD/utilization dynamics
-    util = loans["orig_balance"].to_numpy() / loans["credit_limit"].to_numpy()
-    util = np.clip(util, 0.05, 0.95)
-
-    util_shocks = rs.normal(0.0, 0.03, size=(n, m)) + 0.02 * (unemployment - unemployment.mean())
-    util_path = np.clip(util[:, None] + util_shocks.cumsum(axis=1), 0.01, 0.99)
-
+    # Utilization and EAD path pre-simulation
+    util0 = loans["orig_balance"].to_numpy() / loans["credit_limit"].to_numpy()
+    util0 = np.clip(util0, 0.05, 0.95)
+    util_shocks = rs.normal(0.0, 0.03, size=(n, m)) + 0.02 * unemp_dev.reshape(1, m)
+    util_path = np.clip(util0[:, None] + util_shocks.cumsum(axis=1), 0.01, 0.99)
     credit_limit = loans["credit_limit"].to_numpy()[:, None]
-    balance_ead = util_path * credit_limit
+    balance_path = util_path * credit_limit
 
-    # Payments reduce balances modestly if not defaulted
-    payment = 0.025 * credit_limit
-    balance_ead = np.where(defaulted == 1, balance_ead, np.clip(balance_ead - payment, 0.0, None))
+    # State machine: 0=C,1=30,2=60,3=90+,4=CO
+    state = np.zeros(n, dtype=np.int8)
+    lgd_at_co = np.full(n, np.nan, dtype=float)
+    recovery_scheduled = np.zeros((n, m), dtype=float)
+    recovery_lag_sched = np.zeros((n, m), dtype=int)
 
-    # LGD simple rule for unsecured
-    lgd = np.full((n, m), 0.85, dtype=float)
+    def clamp(x: np.ndarray, lo: float, hi: float) -> np.ndarray:
+        return np.clip(x, lo, hi)
 
-    # Build DataFrame
     records = []
     for t_idx, asof in enumerate(panel_months):
+        # Transition probabilities influenced by risk and macro
+        risk = (720 - fico).clip(0)
+        udev = unemp_dev[t_idx]
+
+        p_c_to_30 = clamp(0.01 + 0.00006 * risk + 0.01 * max(0.0, udev), 0.001, 0.25)
+        p_30_to_60 = clamp(0.08 + 0.00008 * risk + 0.01 * max(0.0, udev), 0.01, 0.35)
+        p_60_to_90 = clamp(0.12 + 0.00010 * risk + 0.015 * max(0.0, udev), 0.02, 0.45)
+        p_90_to_co = clamp(0.18 + 0.00012 * risk + 0.02 * max(0.0, udev), 0.03, 0.6)
+
+        p_30_cure = clamp(0.30 - 0.0002 * risk - 0.01 * max(0.0, udev), 0.02, 0.6)
+        p_60_cure = clamp(0.18 - 0.00015 * risk - 0.008 * max(0.0, udev), 0.01, 0.4)
+        p_90_cure = clamp(0.06 - 0.0001 * risk - 0.005 * max(0.0, udev), 0.0, 0.2)
+
+        # Random uniforms for transitions
+        u = rs.random(n)
+
+        # From current
+        mask_c = state == 0
+        trans_c_to_30 = mask_c & (u < p_c_to_30)
+        state[trans_c_to_30] = 1
+
+        # 30 bucket
+        mask_30 = state == 1
+        u = rs.random(n)
+        trans_30_to_60 = mask_30 & (u < p_30_to_60)
+        trans_30_cure = mask_30 & (u >= p_30_to_60) & (u < p_30_to_60 + p_30_cure)
+        state[trans_30_to_60] = 2
+        state[trans_30_cure] = 0
+
+        # 60 bucket
+        mask_60 = state == 2
+        u = rs.random(n)
+        trans_60_to_90 = mask_60 & (u < p_60_to_90)
+        trans_60_cure = mask_60 & (u >= p_60_to_90) & (u < p_60_to_90 + p_60_cure)
+        state[trans_60_to_90] = 3
+        state[trans_60_cure] = 0
+
+        # 90+ bucket
+        mask_90 = state == 3
+        u = rs.random(n)
+        trans_90_to_co = mask_90 & (u < p_90_to_co)
+        trans_90_cure = mask_90 & (u >= p_90_to_co) & (u < p_90_to_co + p_90_cure)
+        became_co = np.where(trans_90_to_co)[0]
+        state[trans_90_to_co] = 4
+        state[trans_90_cure] = 0
+
+        # On charge-off, schedule recovery and set LGD
+        if became_co.size > 0:
+            lgd_vals = clamp(rs.normal(0.88, 0.05, size=became_co.size), 0.6, 0.98)
+            lgd_at_co[became_co] = lgd_vals
+            # Recovery after lag L (3-9 months) as lump sum of (1-LGD)*balance
+            lag = rs.integers(3, 10, size=became_co.size)
+            rec_month = t_idx + lag
+            valid = rec_month < m
+            idx_valid = became_co[valid]
+            rec_month_valid = rec_month[valid]
+            if idx_valid.size > 0:
+                rec_amt = (1.0 - lgd_vals[valid]) * balance_path[idx_valid, t_idx]
+                recovery_scheduled[idx_valid, rec_month_valid] += rec_amt
+                recovery_lag_sched[idx_valid, rec_month_valid] = lag[valid]
+
+        # After CO, balance goes to zero
+        co_mask = state == 4
+        bal_t = balance_path[:, t_idx]
+        payment = 0.025 * credit_limit[:, 0]
+        bal_t = np.where(co_mask, 0.0, np.clip(bal_t - payment, 0.0, None))
+        interest_t = loans["interest_rate"].to_numpy() * bal_t / 12.0
+
+        roll_bucket = np.where(state == 0, "C", np.where(state == 1, "30", np.where(state == 2, "60", np.where(state == 3, "90+", "CO"))))
+        dpp = np.where(state == 0, 0, np.where(state == 1, 30, np.where(state == 2, 60, np.where(state == 3, 90, 120))))
+        default_flag = (trans_90_to_co).astype(bool)
+        chargeoff_flag = (state == 4)
+        cure_flag = (trans_30_cure | trans_60_cure | trans_90_cure)
+
+        lgd_t = np.where(chargeoff_flag, np.nan_to_num(lgd_at_co, nan=0.88), 0.88)
+
+        rec_amt_t = recovery_scheduled[:, t_idx]
+        rec_lag_t = recovery_lag_sched[:, t_idx]
+
         rec = pd.DataFrame(
             {
                 "asof_month": asof,
                 "loan_id": loans["loan_id"].values,
                 "borrower_id": loans["borrower_id"].values,
                 "product": loans["product"].values,
-                "balance_ead": balance_ead[:, t_idx],
+                "balance_ead": bal_t,
                 "scheduled_principal": np.zeros(n),
-                "current_principal": balance_ead[:, t_idx],
-                "current_interest": loans["interest_rate"].values * balance_ead[:, t_idx] / 12.0,
-                "utilization": np.clip(balance_ead[:, t_idx] / credit_limit[:, 0], 0.0, 1.0),
+                "current_principal": bal_t,
+                "current_interest": interest_t,
+                "utilization": np.clip(np.divide(bal_t, credit_limit[:, 0], out=np.zeros_like(bal_t), where=credit_limit[:, 0] != 0), 0.0, 1.0),
                 "prepay_flag": np.zeros(n, dtype=bool),
-                "days_past_due": (defaulted[:, t_idx] * 90).astype(int),
-                "roll_rate_bucket": np.where(defaulted[:, t_idx] == 1, "90+", "C"),
-                "default_flag": default_matrix[:, t_idx].astype(bool),
-                "chargeoff_flag": defaulted[:, t_idx].astype(bool),
-                "recovery_amt": np.zeros(n),
-                "recovery_lag_m": np.zeros(n),
-                "cure_flag": np.zeros(n, dtype=bool),
-                "loss_given_default": lgd[:, t_idx],
+                "days_past_due": dpp.astype(int),
+                "roll_rate_bucket": roll_bucket,
+                "default_flag": default_flag,
+                "chargeoff_flag": chargeoff_flag,
+                "recovery_amt": rec_amt_t,
+                "recovery_lag_m": rec_lag_t,
+                "cure_flag": cure_flag,
+                "loss_given_default": lgd_t,
                 "effective_rate": loans["interest_rate"].values,
                 "forbearance_flag": np.zeros(n, dtype=bool),
             }
