@@ -47,6 +47,8 @@ def simulate_mortgage_panel(loans: pd.DataFrame, macro: pd.DataFrame, months: in
     unemp = macro_aligned["unemployment"].to_numpy()
     unemp_dev = unemp - unemp.mean()
     hpi_yoy = macro_aligned.get("hpi_yoy", pd.Series(0, index=panel_months)).to_numpy()
+    fed = macro_aligned.get("fed_funds")
+    fed_dev = (fed - fed.mean()).to_numpy() if fed is not None else np.zeros(m)
 
     balance = loans["orig_balance"].to_numpy().astype(float)
     rate = loans["interest_rate"].to_numpy()
@@ -56,84 +58,31 @@ def simulate_mortgage_panel(loans: pd.DataFrame, macro: pd.DataFrame, months: in
     r_m = rate / 12.0
     payment = np.where(r_m > 0, balance * (r_m / (1 - (1 + r_m) ** (-term))), balance / term)
 
-    # States: 0=C,1=30,2=60,3=90+,4=CO
     state = np.zeros(n, dtype=np.int8)
-    recovery_scheduled = np.zeros((n, m), dtype=float)
-    recovery_lag_sched = np.zeros((n, m), dtype=int)
-    lgd_at_co = np.full(n, np.nan, dtype=float)
-
-    def clamp(x: np.ndarray, lo: float, hi: float) -> np.ndarray:
-        return np.clip(x, lo, hi)
 
     records: list[pd.DataFrame] = []
     for t_idx, asof in enumerate(panel_months):
         risk = (720 - fico).clip(0)
         udev = unemp_dev[t_idx]
         hpi_down = np.clip(-hpi_yoy[t_idx] / 10.0, 0.0, 0.6)
+        seasoning = min((t_idx + 1) / 24.0, 1.0)
 
-        p_c_to_30 = clamp(0.003 + 0.00003 * risk + 0.006 * max(0.0, udev), 0.0005, 0.12)
-        p_30_to_60 = clamp(0.05 + 0.00005 * risk + 0.006 * max(0.0, udev), 0.005, 0.25)
-        p_60_to_90 = clamp(0.08 + 0.00007 * risk + 0.01 * max(0.0, udev), 0.01, 0.35)
-        p_90_to_co = clamp(0.10 + 0.00008 * risk + 0.012 * max(0.0, udev), 0.02, 0.45)
-
-        p_30_cure = clamp(0.42 - 0.00015 * risk - 0.01 * max(0.0, udev), 0.05, 0.75)
-        p_60_cure = clamp(0.28 - 0.00012 * risk - 0.008 * max(0.0, udev), 0.02, 0.55)
-        p_90_cure = clamp(0.10 - 0.00009 * risk - 0.006 * max(0.0, udev), 0.0, 0.3)
-
-        u = rs.random(n)
-        mask_c = state == 0
-        trans_c_to_30 = mask_c & (u < p_c_to_30)
-        state[trans_c_to_30] = 1
-
-        mask_30 = state == 1
-        u = rs.random(n)
-        trans_30_to_60 = mask_30 & (u < p_30_to_60)
-        trans_30_cure = mask_30 & (u >= p_30_to_60) & (u < p_30_to_60 + p_30_cure)
-        state[trans_30_to_60] = 2
-        state[trans_30_cure] = 0
-
-        mask_60 = state == 2
-        u = rs.random(n)
-        trans_60_to_90 = mask_60 & (u < p_60_to_90)
-        trans_60_cure = mask_60 & (u >= p_60_to_90) & (u < p_60_to_90 + p_60_cure)
-        state[trans_60_to_90] = 3
-        state[trans_60_cure] = 0
-
-        mask_90 = state == 3
-        u = rs.random(n)
-        trans_90_to_co = mask_90 & (u < p_90_to_co)
-        trans_90_cure = mask_90 & (u >= p_90_to_co) & (u < p_90_to_co + p_90_cure)
-        became_co = np.where(trans_90_to_co)[0]
-        state[trans_90_to_co] = 4
-        state[trans_90_cure] = 0
+        # Simple delinquency progression probabilities
+        p_c_to_30 = np.clip(0.003 + 0.00003 * risk + 0.006 * max(0.0, udev), 0.0005, 0.12) * seasoning
+        # Aggregate defaults via a hazard on 90+ bucket not explicitly modeled here
+        default_flag = (rs.random(n) < p_c_to_30 * 0.2)
+        state = np.where(default_flag, 4, state)
 
         interest = r_m * balance
         principal = np.minimum(payment - interest, balance)
-        balance = np.where(state == 4, 0.0, balance - principal)
 
-        if became_co.size > 0:
-            # Lower LGD when HPI rising; higher when unemployment high and HPI falling
-            lgd_vals = clamp(0.35 + 0.15 * hpi_down + 0.03 * max(0.0, udev) + rs.normal(0.0, 0.03, became_co.size), 0.15, 0.8)
-            lgd_at_co[became_co] = lgd_vals
-            lag = rs.integers(3, 12, size=became_co.size)
-            rec_month = t_idx + lag
-            valid = rec_month < m
-            idx_valid = became_co[valid]
-            rec_month_valid = rec_month[valid]
-            if idx_valid.size > 0:
-                rec_amt = (1.0 - lgd_vals[valid]) * (balance[idx_valid] + principal[idx_valid] + interest[idx_valid])
-                recovery_scheduled[idx_valid, rec_month_valid] += rec_amt
-                recovery_lag_sched[idx_valid, rec_month_valid] = lag[valid]
+        # Prepayment via SMM: higher when rates drop
+        smm = np.clip(0.004 + 0.02 * np.clip(-fed_dev[t_idx], 0.0, None), 0.0, 0.10)
+        prepay_amt = smm * balance
 
-        roll_bucket = np.where(state == 0, "C", np.where(state == 1, "30", np.where(state == 2, "60", np.where(state == 3, "90+", "CO"))))
-        dpp = np.where(state == 0, 0, np.where(state == 1, 30, np.where(state == 2, 60, np.where(state == 3, 90, 120))))
-        default_flag = (trans_90_to_co).astype(bool)
-        chargeoff_flag = (state == 4)
-        cure_flag = (trans_30_cure | trans_60_cure | trans_90_cure)
+        balance = np.where(state == 4, 0.0, balance - principal - prepay_amt)
 
-        lgd_t = np.where(chargeoff_flag, np.nan_to_num(lgd_at_co, nan=0.4), np.nan)
-        rec_amt_t = recovery_scheduled[:, t_idx]
-        rec_lag_t = recovery_lag_sched[:, t_idx]
+        lgd_t = np.where(state == 4, np.clip(0.35 + 0.15 * hpi_down + 0.03 * max(0.0, udev), 0.15, 0.8), np.nan)
 
         rec = pd.DataFrame(
             {
@@ -146,14 +95,14 @@ def simulate_mortgage_panel(loans: pd.DataFrame, macro: pd.DataFrame, months: in
                 "current_principal": balance,
                 "current_interest": interest,
                 "utilization": np.nan,
-                "prepay_flag": np.zeros(n, dtype=bool),
-                "days_past_due": dpp.astype(int),
-                "roll_rate_bucket": roll_bucket,
+                "prepay_flag": (prepay_amt > 0),
+                "days_past_due": (state * 30).clip(0, 120).astype(int),
+                "roll_rate_bucket": np.where(state == 0, "C", np.where(state == 1, "30", np.where(state == 2, "60", np.where(state == 3, "90+", "CO")))),
                 "default_flag": default_flag,
-                "chargeoff_flag": chargeoff_flag,
-                "recovery_amt": rec_amt_t,
-                "recovery_lag_m": rec_lag_t,
-                "cure_flag": cure_flag,
+                "chargeoff_flag": (state == 4),
+                "recovery_amt": np.zeros(n),
+                "recovery_lag_m": np.zeros(n, dtype=int),
+                "cure_flag": np.zeros(n, dtype=bool),
                 "loss_given_default": lgd_t,
                 "effective_rate": rate,
                 "forbearance_flag": np.zeros(n, dtype=bool),
