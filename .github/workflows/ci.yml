@@ -31,6 +31,10 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
+      - name: Type check
+        run: |
+          mypy --config-file mypy.ini src
+
       - name: Run tiny sample generation
         run: |
           python scripts/generate_multiproduct_sample.py --n_borrowers 500 --months 3
