@@ -1,0 +1,45 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.env
+.mypy_cache/
+.pytype/
+.pytest_cache/
+.coverage
+
+# Editors/IDE
+.vscode/
+.idea/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Build
+build/
+dist/
+
+# Data & artifacts
+logs/
+artifacts/
+/tmp/
+
+# Datasets (avoid committing large files)
+data/raw/
+data/processed/
+features/
+
+# Common formats
+*.parquet
+*.feather
+*.arrow
+*.orc
+*.csv
+*.tsv

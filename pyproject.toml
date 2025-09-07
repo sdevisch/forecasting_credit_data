@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "credit-data"
+version = "0.1.0"
+description = "Synthetic credit risk data generation and CECL allowance prototyping"
+authors = [{ name = "Credit Data Dev", email = "dev@example.com" }]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
