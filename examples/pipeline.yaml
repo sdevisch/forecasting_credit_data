@@ -1,0 +1,8 @@
+pipeline:
+  n_borrowers: 5000
+  months: 6
+  steps:
+    - generate_multiproduct_sample
+    - run_cecl_multiproduct
+    - build_features
+    - generate_reports
