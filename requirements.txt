@@ -10,3 +10,4 @@ tqdm>=4.66
 python-dateutil>=2.8
 PyYAML>=6.0
 streamlit>=1.36
+mypy>=1.10
