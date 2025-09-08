@@ -15,6 +15,7 @@ from credit_data.products.personal import generate_personal_loans, simulate_pers
 from credit_data.products.mortgage import generate_mortgage_loans, simulate_mortgage_panel
 from credit_data.products.heloc import generate_heloc_loans, simulate_heloc_panel
 from credit_data.logging_utils import get_logger, timed
+from credit_data.manifest import write_manifest
 
 
 def main() -> None:
@@ -77,6 +78,17 @@ def main() -> None:
         else:
             for prod, df in panels_map.items():
                 df.to_parquet(os.path.join(out_path, f"loan_monthly_{prod}.parquet"))
+
+    # Write metadata manifest
+    write_manifest(out_path, params={
+        "n_borrowers": args.n_borrowers,
+        "months": args.months,
+        "start": args.start,
+        "end": args.end,
+        "seed": args.seed,
+        "partitioned": args.partitioned,
+        "products": products,
+    })
 
     logger.info("Done.")
 
