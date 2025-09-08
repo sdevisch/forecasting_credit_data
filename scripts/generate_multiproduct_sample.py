@@ -23,6 +23,7 @@ def main() -> None:
     parser.add_argument("--end", type=str, default="2024-12-01")
     parser.add_argument("--out_dir", type=str, default="data/processed")
     parser.add_argument("--seed", type=int, default=12345)
+    parser.add_argument("--partitioned", action="store_true", help="Write partitioned Parquet outputs")
     args = parser.parse_args()
 
     print("Fetching macro data ...")
@@ -51,17 +52,40 @@ def main() -> None:
 
     print(f"Writing outputs to {out_path} ...")
     borrowers.to_parquet(os.path.join(out_path, "borrowers.parquet"))
-    card_loans.to_parquet(os.path.join(out_path, "loans_card.parquet"))
-    auto_loans.to_parquet(os.path.join(out_path, "loans_auto.parquet"))
-    personal_loans.to_parquet(os.path.join(out_path, "loans_personal.parquet"))
-    mortgage_loans.to_parquet(os.path.join(out_path, "loans_mortgage.parquet"))
-    heloc_loans.to_parquet(os.path.join(out_path, "loans_heloc.parquet"))
 
-    card_panel.to_parquet(os.path.join(out_path, "loan_monthly_card.parquet"))
-    auto_panel.to_parquet(os.path.join(out_path, "loan_monthly_auto.parquet"))
-    personal_panel.to_parquet(os.path.join(out_path, "loan_monthly_personal.parquet"))
-    mortgage_panel.to_parquet(os.path.join(out_path, "loan_monthly_mortgage.parquet"))
-    heloc_panel.to_parquet(os.path.join(out_path, "loan_monthly_heloc.parquet"))
+    # Loans
+    if args.partitioned:
+        loans_all = pd.concat([
+            card_loans.assign(product="card"),
+            auto_loans.assign(product="auto"),
+            personal_loans.assign(product="personal"),
+            mortgage_loans.assign(product="mortgage"),
+            heloc_loans.assign(product="heloc"),
+        ], ignore_index=True)
+        loans_all.to_parquet(os.path.join(out_path, "loans_partitioned.parquet"), partition_cols=["product"])
+    else:
+        card_loans.to_parquet(os.path.join(out_path, "loans_card.parquet"))
+        auto_loans.to_parquet(os.path.join(out_path, "loans_auto.parquet"))
+        personal_loans.to_parquet(os.path.join(out_path, "loans_personal.parquet"))
+        mortgage_loans.to_parquet(os.path.join(out_path, "loans_mortgage.parquet"))
+        heloc_loans.to_parquet(os.path.join(out_path, "loans_heloc.parquet"))
+
+    # Panels
+    if args.partitioned:
+        panels_all = pd.concat([
+            card_panel.assign(product="card"),
+            auto_panel.assign(product="auto"),
+            personal_panel.assign(product="personal"),
+            mortgage_panel.assign(product="mortgage"),
+            heloc_panel.assign(product="heloc"),
+        ], ignore_index=True)
+        panels_all.to_parquet(os.path.join(out_path, "loan_monthly_partitioned.parquet"), partition_cols=["product", "asof_month"])
+    else:
+        card_panel.to_parquet(os.path.join(out_path, "loan_monthly_card.parquet"))
+        auto_panel.to_parquet(os.path.join(out_path, "loan_monthly_auto.parquet"))
+        personal_panel.to_parquet(os.path.join(out_path, "loan_monthly_personal.parquet"))
+        mortgage_panel.to_parquet(os.path.join(out_path, "loan_monthly_mortgage.parquet"))
+        heloc_panel.to_parquet(os.path.join(out_path, "loan_monthly_heloc.parquet"))
 
     print("Done.")
 
