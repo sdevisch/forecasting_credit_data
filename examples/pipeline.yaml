@@ -1,6 +1,8 @@
 pipeline:
-  n_borrowers: 5000
-  months: 6
+  n_borrowers: 4000
+  months: 3
+  products: [card, personal]
+  partitioned: true
   steps:
     - generate_multiproduct_sample
     - run_cecl_multiproduct
