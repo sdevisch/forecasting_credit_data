@@ -6,7 +6,7 @@ import pandas as pd
 
 def coverage_by_product(cecl_dir: str) -> pd.DataFrame:
     by_product = pd.read_parquet(os.path.join(cecl_dir, "portfolio_aggregates_by_product.parquet"))
-    latest = by_product.sort_values("asof_month").groupby("product").tail(1)
+    latest = by_product.sort_values("asof_month").groupby("product", observed=False).tail(1)
     latest = latest.rename(columns={"portfolio_monthly_ecl": "monthly_ecl", "portfolio_ead": "ead"})
     latest["coverage_pct"] = (latest["monthly_ecl"] / latest["ead"]).fillna(0.0) * 100.0
     return latest[["product", "asof_month", "monthly_ecl", "ead", "coverage_pct"]]
@@ -20,9 +20,8 @@ def monthly_summary_overall(cecl_dir: str) -> pd.DataFrame:
 
 
 def vintage_summary(loans_dir: str) -> pd.DataFrame:
-    # Combine all loan files
     loan_files = [p for p in os.listdir(loans_dir) if p.startswith("loans_") and p.endswith(".parquet")]
     dfs = [pd.read_parquet(os.path.join(loans_dir, p)) for p in loan_files]
     loans = pd.concat(dfs, ignore_index=True)
-    vint = loans.groupby(["product", "vintage"], as_index=False)["orig_balance"].sum().rename(columns={"orig_balance": "orig_balance_total"})
+    vint = loans.groupby(["product", "vintage"], as_index=False, observed=False)["orig_balance"].sum().rename(columns={"orig_balance": "orig_balance_total"})
     return vint.sort_values(["product", "vintage"])
