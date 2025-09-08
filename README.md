@@ -39,29 +39,52 @@ Artifacts are written to `data/processed/sample_YYYYMMDD_HHMMSS/`.
 - Programmatic config: use `credit_data.config.load_config("path/to/config.yaml")` to merge YAML with env vars.
 
 ## Useful scripts
-- Multi-product sample:
+- Multi-product sample (with product filter and partitioned outputs):
   ```bash
+  # all products
   python scripts/generate_multiproduct_sample.py --n_borrowers 20000 --months 12
+  # subset of products
+  python scripts/generate_multiproduct_sample.py --n_borrowers 8000 --months 6 --products card,personal
+  # partitioned parquet outputs (product, asof_month)
+  python scripts/generate_multiproduct_sample.py --n_borrowers 8000 --months 6 --partitioned
   ```
-- CECL (multi-product):
+- CECL (auto-detects partitioned or per-product panels):
   ```bash
   python scripts/run_cecl_multiproduct.py --input data/processed/sample_multi_YYYYMMDD_HHMMSS
-  ```
-- Scenario runner (YAML):
-  ```bash
-  python scripts/run_scenarios.py --config examples/example_scenarios.yaml
-  ```
-- Calibration summaries:
-  ```bash
-  python scripts/run_calibration.py --input data/processed/sample_multi_YYYYMMDD_HHMMSS
-  ```
-- Curve calibration (hazard scaling):
-  ```bash
-  python scripts/apply_curve_calibration.py --input data/processed/sample_multi_YYYYMMDD_HHMMSS/cecl_multi --targets examples/target_curves.yaml --months 12
   ```
 - Feature engineering:
   ```bash
   python scripts/build_features.py --input data/processed/sample_multi_YYYYMMDD_HHMMSS
+  ```
+- Reports:
+  ```bash
+  python scripts/generate_reports.py --input data/processed/sample_multi_YYYYMMDD_HHMMSS
+  ```
+- Scenario runner (YAML):
+  ```bash
+  python scripts/run_scenarios.py --config examples/example_scenarios.yaml
+  python scripts/compare_scenarios.py
+  ```
+- End-to-end (imperative):
+  ```bash
+  python scripts/run_end_to_end.py --n_borrowers 2000 --months 3 --validate
+  ```
+- End-to-end (YAML-driven):
+  ```bash
+  # products + partitioned supported in YAML
+  python scripts/run_end_to_end_config.py --config examples/pipeline.yaml
+  ```
+
+## Docker & Makefile
+- Build and run inside a container (mounts `data/`):
+  ```bash
+  make build
+  make run
+  ```
+- Local convenience targets:
+  ```bash
+  make e2e         # end-to-end with validation
+  make scenario-ci # scenarios + comparison summary
   ```
 
 ## Notes
