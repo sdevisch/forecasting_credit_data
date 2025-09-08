@@ -45,7 +45,7 @@ def compute_lifetime_ecl(monthly_ecl_df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"monthly_ecl_df missing required columns: {missing}")
 
     lifetime = (
-        monthly_ecl_df.groupby(["loan_id"], as_index=False)["monthly_ecl"].sum()
+        monthly_ecl_df.groupby(["loan_id"], as_index=False, observed=False)["monthly_ecl"].sum()
         .rename(columns={"monthly_ecl": "lifetime_ecl"})
     )
     return lifetime
@@ -61,7 +61,7 @@ def compute_portfolio_aggregates(monthly_ecl_df: pd.DataFrame) -> pd.DataFrame:
     - DataFrame with columns: asof_month, portfolio_monthly_ecl, portfolio_ead
     """
     agg = (
-        monthly_ecl_df.groupby(["asof_month"], as_index=False)[["monthly_ecl", "ead_t"]].sum()
+        monthly_ecl_df.groupby(["asof_month"], as_index=False, observed=False)[["monthly_ecl", "ead_t"]].sum()
         .rename(columns={"monthly_ecl": "portfolio_monthly_ecl", "ead_t": "portfolio_ead"})
     )
     return agg
