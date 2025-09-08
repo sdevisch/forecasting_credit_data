@@ -25,13 +25,24 @@ def main() -> None:
     pipe = cfg.get("pipeline", {})
     n_borrowers = int(pipe.get("n_borrowers", 10000))
     months = int(pipe.get("months", 6))
+    products = pipe.get("products")  # optional comma-separated or list
+    partitioned = bool(pipe.get("partitioned", False))
     steps = pipe.get("steps", [])
 
     dataset_dir = None
 
     for step in steps:
         if step == "generate_multiproduct_sample":
-            run([sys.executable, "scripts/generate_multiproduct_sample.py", "--n_borrowers", str(n_borrowers), "--months", str(months)])
+            gen_cmd = [sys.executable, "scripts/generate_multiproduct_sample.py", "--n_borrowers", str(n_borrowers), "--months", str(months)]
+            if products:
+                if isinstance(products, list):
+                    products_arg = ",".join(products)
+                else:
+                    products_arg = str(products)
+                gen_cmd += ["--products", products_arg]
+            if partitioned:
+                gen_cmd += ["--partitioned"]
+            run(gen_cmd)
             latest = sorted([p for p in os.listdir("data/processed") if p.startswith("sample_multi_")], reverse=True)[0]
             dataset_dir = os.path.join("data/processed", latest)
         elif step == "run_cecl_multiproduct":
