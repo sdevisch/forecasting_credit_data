@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 from datetime import datetime
+from typing import List
 
 import pandas as pd
 
@@ -24,7 +25,10 @@ def main() -> None:
     parser.add_argument("--out_dir", type=str, default="data/processed")
     parser.add_argument("--seed", type=int, default=12345)
     parser.add_argument("--partitioned", action="store_true", help="Write partitioned Parquet outputs")
+    parser.add_argument("--products", type=str, default="card,auto,personal,mortgage,heloc", help="Comma-separated products to include")
     args = parser.parse_args()
+
+    products: List[str] = [p.strip() for p in args.products.split(",") if p.strip()]
 
     print("Fetching macro data ...")
     macro = get_macro_data(args.start, args.end)
@@ -32,19 +36,24 @@ def main() -> None:
     print("Generating borrowers ...")
     borrowers = generate_borrowers(args.n_borrowers, seed=args.seed)
 
-    print("Generating loans for card, auto, personal, mortgage, heloc ...")
-    card_loans = generate_loans(borrowers, seed=args.seed)
-    auto_loans = generate_auto_loans(borrowers, seed=args.seed)
-    personal_loans = generate_personal_loans(borrowers, seed=args.seed)
-    mortgage_loans = generate_mortgage_loans(borrowers, seed=args.seed)
-    heloc_loans = generate_heloc_loans(borrowers, seed=args.seed)
-
-    print("Simulating monthly panels ...")
-    card_panel = _simulate_card_panel(card_loans, macro, months=args.months, seed=args.seed)
-    auto_panel = simulate_auto_panel(auto_loans, macro, months=args.months, seed=args.seed)
-    personal_panel = simulate_personal_panel(personal_loans, macro, months=args.months, seed=args.seed)
-    mortgage_panel = simulate_mortgage_panel(mortgage_loans, macro, months=args.months, seed=args.seed)
-    heloc_panel = simulate_heloc_panel(heloc_loans, macro, months=args.months, seed=args.seed)
+    print("Generating loans and panels for selected products ...")
+    loans_map = {}
+    panels_map = {}
+    if "card" in products:
+        loans_map["card"] = generate_loans(borrowers, seed=args.seed)
+        panels_map["card"] = _simulate_card_panel(loans_map["card"], macro, months=args.months, seed=args.seed)
+    if "auto" in products:
+        loans_map["auto"] = generate_auto_loans(borrowers, seed=args.seed)
+        panels_map["auto"] = simulate_auto_panel(loans_map["auto"], macro, months=args.months, seed=args.seed)
+    if "personal" in products:
+        loans_map["personal"] = generate_personal_loans(borrowers, seed=args.seed)
+        panels_map["personal"] = simulate_personal_panel(loans_map["personal"], macro, months=args.months, seed=args.seed)
+    if "mortgage" in products:
+        loans_map["mortgage"] = generate_mortgage_loans(borrowers, seed=args.seed)
+        panels_map["mortgage"] = simulate_mortgage_panel(loans_map["mortgage"], macro, months=args.months, seed=args.seed)
+    if "heloc" in products:
+        loans_map["heloc"] = generate_heloc_loans(borrowers, seed=args.seed)
+        panels_map["heloc"] = simulate_heloc_panel(loans_map["heloc"], macro, months=args.months, seed=args.seed)
 
     ts = datetime.now().strftime("sample_multi_%Y%m%d_%H%M%S")
     out_path = os.path.join(args.out_dir, ts)
@@ -53,39 +62,19 @@ def main() -> None:
     print(f"Writing outputs to {out_path} ...")
     borrowers.to_parquet(os.path.join(out_path, "borrowers.parquet"))
 
-    # Loans
     if args.partitioned:
-        loans_all = pd.concat([
-            card_loans.assign(product="card"),
-            auto_loans.assign(product="auto"),
-            personal_loans.assign(product="personal"),
-            mortgage_loans.assign(product="mortgage"),
-            heloc_loans.assign(product="heloc"),
-        ], ignore_index=True)
-        loans_all.to_parquet(os.path.join(out_path, "loans_partitioned.parquet"), partition_cols=["product"])
+        loans_all = pd.concat([df.assign(product=prod) for prod, df in loans_map.items()], ignore_index=True)
+        loans_all.to_parquet(os.path.join(out_path, "loans_partitioned.parquet"), partition_cols=["product"]) 
     else:
-        card_loans.to_parquet(os.path.join(out_path, "loans_card.parquet"))
-        auto_loans.to_parquet(os.path.join(out_path, "loans_auto.parquet"))
-        personal_loans.to_parquet(os.path.join(out_path, "loans_personal.parquet"))
-        mortgage_loans.to_parquet(os.path.join(out_path, "loans_mortgage.parquet"))
-        heloc_loans.to_parquet(os.path.join(out_path, "loans_heloc.parquet"))
+        for prod, df in loans_map.items():
+            df.to_parquet(os.path.join(out_path, f"loans_{prod}.parquet"))
 
-    # Panels
     if args.partitioned:
-        panels_all = pd.concat([
-            card_panel.assign(product="card"),
-            auto_panel.assign(product="auto"),
-            personal_panel.assign(product="personal"),
-            mortgage_panel.assign(product="mortgage"),
-            heloc_panel.assign(product="heloc"),
-        ], ignore_index=True)
-        panels_all.to_parquet(os.path.join(out_path, "loan_monthly_partitioned.parquet"), partition_cols=["product", "asof_month"])
+        panels_all = pd.concat([df.assign(product=prod) for prod, df in panels_map.items()], ignore_index=True)
+        panels_all.to_parquet(os.path.join(out_path, "loan_monthly_partitioned.parquet"), partition_cols=["product", "asof_month"]) 
     else:
-        card_panel.to_parquet(os.path.join(out_path, "loan_monthly_card.parquet"))
-        auto_panel.to_parquet(os.path.join(out_path, "loan_monthly_auto.parquet"))
-        personal_panel.to_parquet(os.path.join(out_path, "loan_monthly_personal.parquet"))
-        mortgage_panel.to_parquet(os.path.join(out_path, "loan_monthly_mortgage.parquet"))
-        heloc_panel.to_parquet(os.path.join(out_path, "loan_monthly_heloc.parquet"))
+        for prod, df in panels_map.items():
+            df.to_parquet(os.path.join(out_path, f"loan_monthly_{prod}.parquet"))
 
     print("Done.")
 
