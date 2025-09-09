@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 try:
-    from pandas_datareader import data as pdr  # type: ignore
+    from pandas_datareader import data as pdr
 except Exception:  # pragma: no cover
     pdr = None  # fallback handled below
 
@@ -68,9 +67,7 @@ def get_macro_data(
         "cpi": "CPIAUCSL",
         "fed_funds": "FEDFUNDS",
         "treasury_10y": "DGS10",
-        # ICE BofA BBB US Corporate Index Option-Adjusted Spread:
         "credit_spread_bbb": "BAMLC0A4CBBB",
-        # FHFA House Price Index (US):
         "hpi": "USSTHPI",
     }
 
@@ -94,18 +91,22 @@ def get_macro_data(
         hpi = fred(symbols["hpi"])  # level index
         hpi_yoy = (hpi.pct_change(12) * 100.0).rename("hpi_yoy")
 
-        # Fake GDP growth as function of unemployment and rates if not fetched directly
         gdp_growth_qoq_ann = (
-            3.0 - 0.3 * (unrate - unrate.rolling(12).mean().fillna(unrate))
+            3.0
+            - 0.3 * (unrate - unrate.rolling(12).mean().fillna(unrate))
             - 0.1 * (fed - fed.rolling(6).mean().fillna(fed))
         ).rename("gdp_growth_qoq_ann")
 
         df = (
-            pd.concat([unrate, cpi_yoy, gdp_growth_qoq_ann, fed, t10, bbb, hpi_yoy], axis=1)
+            pd.concat(
+                [unrate, cpi_yoy, gdp_growth_qoq_ann, fed, t10, bbb, hpi_yoy], axis=1
+            )
             .reset_index()
             .rename(columns={"index": "asof_month"})
         )
-        df["asof_month"] = pd.to_datetime(df["asof_month"]).dt.to_period("M").dt.to_timestamp()
+        df["asof_month"] = (
+            pd.to_datetime(df["asof_month"]).dt.to_period("M").dt.to_timestamp()
+        )
         return df.dropna().reset_index(drop=True)
     except Exception:
         return _synthetic_macro(start, end, freq)

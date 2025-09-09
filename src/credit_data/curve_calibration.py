@@ -21,12 +21,14 @@ def hazards_from_cumulative(cum: Sequence[float]) -> np.ndarray:
         inc = max(cum_arr[i] - prev_cum, 0.0)
         hazards[i] = inc / max(survival, 1e-9)
         prev_cum = cum_arr[i]
-        survival *= (1.0 - hazards[i])
+        survival *= 1.0 - hazards[i]
     clipped = np.asarray(np.clip(hazards, 0.0, 1.0), dtype=float)
     return clipped
 
 
-def compute_scalers(model_hazards: Sequence[float], target_cum: Sequence[float]) -> np.ndarray:
+def compute_scalers(
+    model_hazards: Sequence[float], target_cum: Sequence[float]
+) -> np.ndarray:
     """Compute multiplicative scalers so model hazards align to target cumulative curve."""
     target_haz = hazards_from_cumulative(target_cum)
     model = np.asarray(model_hazards, dtype=float)
@@ -36,7 +38,9 @@ def compute_scalers(model_hazards: Sequence[float], target_cum: Sequence[float])
     return clipped
 
 
-def apply_monthly_ecl_scaling(monthly_df: pd.DataFrame, scalers: Sequence[float], months: int) -> pd.DataFrame:
+def apply_monthly_ecl_scaling(
+    monthly_df: pd.DataFrame, scalers: Sequence[float], months: int
+) -> pd.DataFrame:
     """Apply per-month scaling factors to monthly_ecl column.
 
     Expects columns: loan_id, asof_month, monthly_ecl

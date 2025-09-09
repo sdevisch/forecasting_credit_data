@@ -14,9 +14,18 @@ from credit_data.cecl import (
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run CECL calculation on a dataset folder")
-    parser.add_argument("--input", type=str, required=True, help="Path to dataset folder with loan_monthly.parquet")
-    parser.add_argument("--out", type=str, default=None, help="Output folder; defaults to <input>/cecl")
+    parser = argparse.ArgumentParser(
+        description="Run CECL calculation on a dataset folder"
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Path to dataset folder with loan_monthly.parquet",
+    )
+    parser.add_argument(
+        "--out", type=str, default=None, help="Output folder; defaults to <input>/cecl"
+    )
     args = parser.parse_args()
 
     input_dir = args.input

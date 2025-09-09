@@ -11,9 +11,21 @@ from credit_data.features import add_lags, add_leads, add_rolling, add_interacti
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build features from loan monthly panels")
-    parser.add_argument("--input", type=str, required=True, help="Path to dataset folder with loan_monthly_*.parquet")
-    parser.add_argument("--out", type=str, default=None, help="Output folder; defaults to <input>/features")
+    parser = argparse.ArgumentParser(
+        description="Build features from loan monthly panels"
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Path to dataset folder with loan_monthly_*.parquet",
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default=None,
+        help="Output folder; defaults to <input>/features",
+    )
     args = parser.parse_args()
 
     in_dir = args.input
@@ -22,7 +34,9 @@ def main() -> None:
 
     panel_files = glob.glob(os.path.join(in_dir, "loan_monthly_*.parquet"))
     for path in panel_files:
-        product = os.path.basename(path).replace("loan_monthly_", "").replace(".parquet", "")
+        product = (
+            os.path.basename(path).replace("loan_monthly_", "").replace(".parquet", "")
+        )
         df = pd.read_parquet(path)
         df = df.sort_values(["loan_id", "asof_month"])  # ensure temporal order
 
@@ -35,8 +49,20 @@ def main() -> None:
             "days_past_due",
         ]
         df_f = add_lags(df, ["loan_id"], "asof_month", cols_numeric, lags=[1, 3, 6])
-        df_f = add_leads(df_f, ["loan_id"], "asof_month", ["default_flag", "chargeoff_flag"], leads=[1, 3, 6])
-        df_f = add_rolling(df_f, ["loan_id"], "asof_month", ["utilization", "current_interest"], windows=[3, 6])
+        df_f = add_leads(
+            df_f,
+            ["loan_id"],
+            "asof_month",
+            ["default_flag", "chargeoff_flag"],
+            leads=[1, 3, 6],
+        )
+        df_f = add_rolling(
+            df_f,
+            ["loan_id"],
+            "asof_month",
+            ["utilization", "current_interest"],
+            windows=[3, 6],
+        )
         df_f = add_interactions(
             df_f,
             interactions=[

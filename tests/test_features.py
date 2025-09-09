@@ -9,16 +9,18 @@ def make_panel(n_loans: int = 5, months: int = 6) -> pd.DataFrame:
     rows = []
     for lid in range(1, n_loans + 1):
         for m in range(months):
-            rows.append({
-                "loan_id": lid,
-                "asof_month": pd.Timestamp("2020-01-01") + pd.offsets.MonthBegin(m),
-                "balance_ead": 1000 + m,
-                "current_interest": 10 + m,
-                "utilization": 0.5,
-                "days_past_due": 0,
-                "default_flag": False,
-                "chargeoff_flag": False,
-            })
+            rows.append(
+                {
+                    "loan_id": lid,
+                    "asof_month": pd.Timestamp("2020-01-01") + pd.offsets.MonthBegin(m),
+                    "balance_ead": 1000 + m,
+                    "current_interest": 10 + m,
+                    "utilization": 0.5,
+                    "days_past_due": 0,
+                    "default_flag": False,
+                    "chargeoff_flag": False,
+                }
+            )
     return pd.DataFrame(rows)
 
 

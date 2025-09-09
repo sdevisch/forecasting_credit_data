@@ -24,7 +24,9 @@ def load_panels(input_dir: str) -> pd.DataFrame:
         raise FileNotFoundError(f"No panel files found under {input_dir}")
     frames = []
     for path in panel_paths:
-        product = os.path.basename(path).replace("loan_monthly_", "").replace(".parquet", "")
+        product = (
+            os.path.basename(path).replace("loan_monthly_", "").replace(".parquet", "")
+        )
         df = pd.read_parquet(path)
         if "product" not in df.columns:
             df["product"] = product
@@ -33,9 +35,21 @@ def load_panels(input_dir: str) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run CECL across multiple product panel files")
-    parser.add_argument("--input", type=str, required=True, help="Path to dataset folder with loan_monthly_*.parquet files or partitioned")
-    parser.add_argument("--out", type=str, default=None, help="Output folder; defaults to <input>/cecl_multi")
+    parser = argparse.ArgumentParser(
+        description="Run CECL across multiple product panel files"
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Path to dataset folder with loan_monthly_*.parquet files or partitioned",
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default=None,
+        help="Output folder; defaults to <input>/cecl_multi",
+    )
     args = parser.parse_args()
 
     logger = get_logger("cecl_runner")
@@ -66,8 +80,12 @@ def main() -> None:
     with timed(logger, "write_outputs"):
         monthly.to_parquet(os.path.join(out_dir, "monthly_ecl.parquet"))
         lifetime.to_parquet(os.path.join(out_dir, "lifetime_ecl.parquet"))
-        portfolio_all.to_parquet(os.path.join(out_dir, "portfolio_aggregates_by_product.parquet"))
-        overall.to_parquet(os.path.join(out_dir, "portfolio_aggregates_overall.parquet"))
+        portfolio_all.to_parquet(
+            os.path.join(out_dir, "portfolio_aggregates_by_product.parquet")
+        )
+        overall.to_parquet(
+            os.path.join(out_dir, "portfolio_aggregates_overall.parquet")
+        )
 
     logger.info(f"Wrote CECL outputs to {out_dir}")
 
