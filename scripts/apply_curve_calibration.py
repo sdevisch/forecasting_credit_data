@@ -19,7 +19,7 @@ def main() -> None:
         "--input",
         type=str,
         required=True,
-        help="Path to cecl_multi folder with monthly_ecl_all.parquet",
+        help="Path to cecl_multi folder with monthly_ecl_all.parquet or monthly_ecl.parquet",
     )
     parser.add_argument(
         "--targets",
@@ -31,9 +31,14 @@ def main() -> None:
     args = parser.parse_args()
 
     in_dir = args.input
-    monthly_path = os.path.join(in_dir, "monthly_ecl_all.parquet")
-    if not os.path.exists(monthly_path):
-        raise FileNotFoundError(f"Missing {monthly_path}")
+    monthly_all = os.path.join(in_dir, "monthly_ecl_all.parquet")
+    monthly_one = os.path.join(in_dir, "monthly_ecl.parquet")
+    if os.path.exists(monthly_all):
+        monthly_path = monthly_all
+    elif os.path.exists(monthly_one):
+        monthly_path = monthly_one
+    else:
+        raise FileNotFoundError(f"Missing {monthly_all} and {monthly_one}")
     monthly = pd.read_parquet(monthly_path)
 
     with open(args.targets, "r") as f:
