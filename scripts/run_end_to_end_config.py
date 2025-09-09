@@ -31,6 +31,11 @@ def main() -> None:
     partitioned = bool(pipe.get("partitioned", False))
     steps = pipe.get("steps", [])
 
+    # Calibration config
+    calib = cfg.get("calibration", {})
+    targets_path = calib.get("targets", "examples/target_curves.yaml")
+    calib_months = int(calib.get("months", months))
+
     dataset_dir = None
 
     for step in steps:
@@ -69,6 +74,21 @@ def main() -> None:
                     "scripts/run_cecl_multiproduct.py",
                     "--input",
                     dataset_dir,
+                ]
+            )
+        elif step == "apply_curve_calibration":
+            assert dataset_dir is not None, "Run CECL step first"
+            cecl_dir = os.path.join(dataset_dir, "cecl_multi")
+            run(
+                [
+                    sys.executable,
+                    "scripts/apply_curve_calibration.py",
+                    "--input",
+                    cecl_dir,
+                    "--targets",
+                    str(targets_path),
+                    "--months",
+                    str(calib_months),
                 ]
             )
         elif step == "build_features":

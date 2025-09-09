@@ -6,5 +6,10 @@ pipeline:
   steps:
     - generate_multiproduct_sample
     - run_cecl_multiproduct
+    - apply_curve_calibration
     - build_features
     - generate_reports
+
+calibration:
+  targets: examples/target_curves.yaml
+  months: 12
