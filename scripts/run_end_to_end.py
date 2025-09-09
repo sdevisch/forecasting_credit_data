@@ -23,6 +23,17 @@ def main() -> None:
         action="store_true",
         help="Run validation on the dataset at the end",
     )
+    parser.add_argument(
+        "--calibrate",
+        action="store_true",
+        help="Apply target curve calibration after CECL",
+    )
+    parser.add_argument(
+        "--targets",
+        type=str,
+        default="examples/target_curves.yaml",
+        help="YAML file with product target cumulative default curves",
+    )
     args = parser.parse_args()
 
     run(
@@ -43,6 +54,22 @@ def main() -> None:
     dataset_dir = os.path.join("data/processed", latest)
 
     run([sys.executable, "scripts/run_cecl_multiproduct.py", "--input", dataset_dir])
+
+    if args.calibrate:
+        cecl_dir = os.path.join(dataset_dir, "cecl_multi")
+        run(
+            [
+                sys.executable,
+                "scripts/apply_curve_calibration.py",
+                "--input",
+                cecl_dir,
+                "--targets",
+                args.targets,
+                "--months",
+                str(args.months),
+            ]
+        )
+
     run([sys.executable, "scripts/build_features.py", "--input", dataset_dir])
     run([sys.executable, "scripts/generate_reports.py", "--input", dataset_dir])
 
