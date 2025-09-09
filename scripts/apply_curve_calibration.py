@@ -12,9 +12,21 @@ from credit_data.curve_calibration import compute_scalers, apply_monthly_ecl_sca
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Apply target curve calibration to monthly ECLs")
-    parser.add_argument("--input", type=str, required=True, help="Path to cecl_multi folder with monthly_ecl_all.parquet")
-    parser.add_argument("--targets", type=str, required=True, help="YAML with product target cumulative curves")
+    parser = argparse.ArgumentParser(
+        description="Apply target curve calibration to monthly ECLs"
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Path to cecl_multi folder with monthly_ecl_all.parquet",
+    )
+    parser.add_argument(
+        "--targets",
+        type=str,
+        required=True,
+        help="YAML with product target cumulative curves",
+    )
     parser.add_argument("--months", type=int, default=12)
     args = parser.parse_args()
 
@@ -38,7 +50,11 @@ def main() -> None:
         sub = sub.sort_values(["loan_id", "asof_month"])  # ensure order
         sub["month_idx"] = sub.groupby("loan_id").cumcount()
         hazards = (
-            sub.groupby("month_idx")["default_flag"].mean().reindex(range(len(curve))).fillna(0.0).to_numpy()
+            sub.groupby("month_idx")["default_flag"]
+            .mean()
+            .reindex(range(len(curve)))
+            .fillna(0.0)
+            .to_numpy()
         )
         scalers = compute_scalers(hazards, curve)
         scaled = apply_monthly_ecl_scaling(sub, scalers, months=len(curve))

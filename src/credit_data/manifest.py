@@ -9,7 +9,13 @@ from typing import Any, Dict
 
 def get_git_commit() -> str | None:
     try:
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        sha = (
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
         return sha
     except Exception:
         return None

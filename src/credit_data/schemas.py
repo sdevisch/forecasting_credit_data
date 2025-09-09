@@ -21,9 +21,9 @@ class BorrowerSchema(BaseModel):
     credit_utilization_baseline: float = Field(..., ge=0.0, le=1.0)
     prior_delinquencies: int = Field(..., ge=0)
     bank_tenure_months: int = Field(..., ge=0)
-    segment: Literal[
-        "mass", "affluent", "small_business", "private", "student"
-    ] = "mass"
+    segment: Literal["mass", "affluent", "small_business", "private", "student"] = (
+        "mass"
+    )
 
 
 class LoanSchema(BaseModel):
@@ -31,9 +31,7 @@ class LoanSchema(BaseModel):
 
     loan_id: int
     borrower_id: int
-    product: Literal[
-        "card", "auto", "mortgage", "heloc", "personal"
-    ]
+    product: Literal["card", "auto", "mortgage", "heloc", "personal"]
     origination_dt: date
     maturity_months: int = Field(..., ge=1)
     interest_rate: float = Field(..., ge=0.0)

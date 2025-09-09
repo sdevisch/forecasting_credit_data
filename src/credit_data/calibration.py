@@ -12,11 +12,19 @@ def distribution_summary(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
             {
                 "column": c,
                 "count": int(s.shape[0]),
-                "mean": float(s.mean()) if np.issubdtype(s.dtype, np.number) else np.nan,
+                "mean": float(s.mean())
+                if np.issubdtype(s.dtype, np.number)
+                else np.nan,
                 "std": float(s.std()) if np.issubdtype(s.dtype, np.number) else np.nan,
-                "p10": float(s.quantile(0.10)) if np.issubdtype(s.dtype, np.number) else np.nan,
-                "p50": float(s.quantile(0.50)) if np.issubdtype(s.dtype, np.number) else np.nan,
-                "p90": float(s.quantile(0.90)) if np.issubdtype(s.dtype, np.number) else np.nan,
+                "p10": float(s.quantile(0.10))
+                if np.issubdtype(s.dtype, np.number)
+                else np.nan,
+                "p50": float(s.quantile(0.50))
+                if np.issubdtype(s.dtype, np.number)
+                else np.nan,
+                "p90": float(s.quantile(0.90))
+                if np.issubdtype(s.dtype, np.number)
+                else np.nan,
             }
         )
     return pd.DataFrame(out)

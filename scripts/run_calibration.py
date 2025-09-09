@@ -11,8 +11,15 @@ from credit_data.calibration import distribution_summary, roll_rate_matrix
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compute basic calibration summaries from dataset folder")
-    parser.add_argument("--input", type=str, required=True, help="Path to dataset folder with loan_monthly_*.parquet and loans_*.parquet")
+    parser = argparse.ArgumentParser(
+        description="Compute basic calibration summaries from dataset folder"
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Path to dataset folder with loan_monthly_*.parquet and loans_*.parquet",
+    )
     args = parser.parse_args()
 
     in_dir = args.input
@@ -33,12 +40,16 @@ def main() -> None:
             "ltv_at_orig",
         ],
     )
-    loans_summary.to_parquet(os.path.join(out_dir, "loans_distribution_summary.parquet"))
+    loans_summary.to_parquet(
+        os.path.join(out_dir, "loans_distribution_summary.parquet")
+    )
 
     # Roll rate matrices per product
     panel_files = glob.glob(os.path.join(in_dir, "loan_monthly_*.parquet"))
     for f in panel_files:
-        product = os.path.basename(f).replace("loan_monthly_", "").replace(".parquet", "")
+        product = (
+            os.path.basename(f).replace("loan_monthly_", "").replace(".parquet", "")
+        )
         panel = pd.read_parquet(f)
         rr = roll_rate_matrix(panel)
         rr.to_parquet(os.path.join(out_dir, f"roll_rates_{product}.parquet"))

@@ -1,20 +1,74 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import date, datetime
-from typing import Tuple
-
 import numpy as np
 import pandas as pd
 
 
 US_STATES = [
-    "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
 ]
 SEGMENTS = ["mass", "affluent", "small_business", "private", "student"]
 PRODUCTS = ["card"]  # initial prototype focuses on card; extendable
 INDUSTRIES = [
-    "tech","finance","healthcare","education","manufacturing","retail","hospitality","transport","construction","other",
+    "tech",
+    "finance",
+    "healthcare",
+    "education",
+    "manufacturing",
+    "retail",
+    "hospitality",
+    "transport",
+    "construction",
+    "other",
 ]
 
 
@@ -28,19 +82,27 @@ def generate_borrowers(num_borrowers: int, seed: int | None = 12345) -> pd.DataF
     rs = _rng(seed)
     borrower_id = np.arange(1, num_borrowers + 1, dtype=np.int64)
     state = rs.choice(US_STATES, size=num_borrowers, replace=True)
-    income_annual = rs.lognormal(mean=10.5, sigma=0.5, size=num_borrowers)  # ~ $36k-$200k
+    income_annual = rs.lognormal(
+        mean=10.5, sigma=0.5, size=num_borrowers
+    )  # ~ $36k-$200k
     employment_tenure_months = rs.integers(0, 360, size=num_borrowers)
     industry = rs.choice(INDUSTRIES, size=num_borrowers, replace=True)
-    education = rs.choice(["hs","college","grad"], size=num_borrowers, p=[0.35, 0.45, 0.2])
+    education = rs.choice(
+        ["hs", "college", "grad"], size=num_borrowers, p=[0.35, 0.45, 0.2]
+    )
     household_size = rs.integers(1, 6, size=num_borrowers)
 
     # Correlated fico/utilization using a simple factor model
     systemic = rs.standard_normal(num_borrowers)
     fico_raw = 690 + 60 * systemic + rs.normal(0, 40, num_borrowers)
     fico_baseline = np.clip(fico_raw, 500, 850).astype(int)
-    util_base = np.clip(0.35 + 0.1 * (-systemic) + rs.normal(0, 0.15, num_borrowers), 0.0, 1.0)
+    util_base = np.clip(
+        0.35 + 0.1 * (-systemic) + rs.normal(0, 0.15, num_borrowers), 0.0, 1.0
+    )
 
-    prior_delinquencies = rs.poisson(lam=np.clip((720 - fico_baseline) / 200.0, 0.05, 2.0))
+    prior_delinquencies = rs.poisson(
+        lam=np.clip((720 - fico_baseline) / 200.0, 0.05, 2.0)
+    )
     bank_tenure_months = rs.integers(1, 360, size=num_borrowers)
     segment = rs.choice(SEGMENTS, size=num_borrowers, p=[0.6, 0.2, 0.08, 0.06, 0.06])
 
@@ -73,9 +135,21 @@ def generate_loans(borrowers: pd.DataFrame, seed: int | None = 12345) -> pd.Data
     periods = pd.period_range(start="2018-01", periods=60, freq="M")
     origination_dt = periods[rs.integers(0, len(periods), n)].to_timestamp()
     maturity_months = np.repeat(120, n)  # not used for revolving but kept
-    interest_rate = np.clip(0.12 + (720 - borrowers["fico_baseline"]) * 0.00025 + rs.normal(0, 0.01, n), 0.08, 0.35)
-    credit_limit = np.clip((borrowers["income_annual"] / 12.0) * rs.uniform(0.2, 0.5, n), 1000, 30000)
-    orig_balance = np.clip(credit_limit * borrowers["credit_utilization_baseline"] * rs.uniform(0.6, 1.0, n), 100, None)
+    interest_rate = np.clip(
+        0.12 + (720 - borrowers["fico_baseline"]) * 0.00025 + rs.normal(0, 0.01, n),
+        0.08,
+        0.35,
+    )
+    credit_limit = np.clip(
+        (borrowers["income_annual"] / 12.0) * rs.uniform(0.2, 0.5, n), 1000, 30000
+    )
+    orig_balance = np.clip(
+        credit_limit
+        * borrowers["credit_utilization_baseline"]
+        * rs.uniform(0.6, 1.0, n),
+        100,
+        None,
+    )
 
     loans = pd.DataFrame(
         {
@@ -88,10 +162,20 @@ def generate_loans(borrowers: pd.DataFrame, seed: int | None = 12345) -> pd.Data
             "orig_balance": orig_balance,
             "secured_flag": np.repeat(False, n),
             "ltv_at_orig": np.repeat(np.nan, n),
-            "risk_grade": pd.cut(borrowers["fico_baseline"], bins=[0, 639, 679, 719, 759, 850], labels=["D","C","B","A","AA"]).astype(str),
-            "underwriting_dti": np.clip((orig_balance / credit_limit) + rs.normal(0.3, 0.1, n), 0.05, 0.8),
+            "risk_grade": pd.cut(
+                borrowers["fico_baseline"],
+                bins=[0, 639, 679, 719, 759, 850],
+                labels=["D", "C", "B", "A", "AA"],
+            ).astype(str),
+            "underwriting_dti": np.clip(
+                (orig_balance / credit_limit) + rs.normal(0.3, 0.1, n), 0.05, 0.8
+            ),
             "underwriting_fico": borrowers["fico_baseline"].values,
-            "channel": rs.choice(["branch","online","mobile","other"], size=n, p=[0.3,0.35,0.3,0.05]),
+            "channel": rs.choice(
+                ["branch", "online", "mobile", "other"],
+                size=n,
+                p=[0.3, 0.35, 0.3, 0.05],
+            ),
             "state": borrowers["state"].values,
             "vintage": origination_dt.strftime("%Y-%m"),
             "credit_limit": credit_limit,
@@ -117,12 +201,14 @@ def _simulate_card_panel(
     fico = loans["underwriting_fico"].to_numpy()
 
     # Align macro series to panel months
-    macro_aligned = (
-        macro.set_index("asof_month").reindex(panel_months).ffill().bfill()
-    )
+    macro_aligned = macro.set_index("asof_month").reindex(panel_months).ffill().bfill()
     unemp = macro_aligned["unemployment"].to_numpy()
     unemp_dev = unemp - unemp.mean()
-    fed = macro_aligned.get("fed_funds").to_numpy() if "fed_funds" in macro_aligned.columns else np.zeros(m)
+    fed = (
+        macro_aligned.get("fed_funds").to_numpy()
+        if "fed_funds" in macro_aligned.columns
+        else np.zeros(m)
+    )
     fed_dev = fed - (fed.mean() if fed.size > 0 else 0.0)
 
     # Utilization and EAD path pre-simulation
@@ -150,10 +236,18 @@ def _simulate_card_panel(
         udev = unemp_dev[t_idx]
 
         # Transition probabilities influenced by risk, macro, seasoning
-        p_c_to_30 = np.clip((0.01 + 0.00006 * risk + 0.01 * max(0.0, udev)) * seasoning, 0.001, 0.25)
-        p_30_to_60 = np.clip((0.08 + 0.00008 * risk + 0.01 * max(0.0, udev)) * seasoning, 0.01, 0.35)
-        p_60_to_90 = np.clip((0.12 + 0.00010 * risk + 0.015 * max(0.0, udev)) * seasoning, 0.02, 0.45)
-        p_90_to_co = np.clip((0.18 + 0.00012 * risk + 0.02 * max(0.0, udev)) * seasoning, 0.03, 0.6)
+        p_c_to_30 = np.clip(
+            (0.01 + 0.00006 * risk + 0.01 * max(0.0, udev)) * seasoning, 0.001, 0.25
+        )
+        p_30_to_60 = np.clip(
+            (0.08 + 0.00008 * risk + 0.01 * max(0.0, udev)) * seasoning, 0.01, 0.35
+        )
+        p_60_to_90 = np.clip(
+            (0.12 + 0.00010 * risk + 0.015 * max(0.0, udev)) * seasoning, 0.02, 0.45
+        )
+        p_90_to_co = np.clip(
+            (0.18 + 0.00012 * risk + 0.02 * max(0.0, udev)) * seasoning, 0.03, 0.6
+        )
 
         p_30_cure = np.clip(0.30 - 0.0002 * risk - 0.01 * max(0.0, udev), 0.02, 0.6)
         p_60_cure = np.clip(0.18 - 0.00015 * risk - 0.008 * max(0.0, udev), 0.01, 0.4)
@@ -201,8 +295,22 @@ def _simulate_card_panel(
         bal_t = np.where(state == 4, 0.0, np.clip(bal_t - payment, 0.0, None))
         interest_t = loans["interest_rate"].to_numpy() * bal_t / 12.0
 
-        roll_bucket = np.where(state == 0, "C", np.where(state == 1, "30", np.where(state == 2, "60", np.where(state == 3, "90+", "CO"))))
-        dpp = np.where(state == 0, 0, np.where(state == 1, 30, np.where(state == 2, 60, np.where(state == 3, 90, 120))))
+        roll_bucket = np.where(
+            state == 0,
+            "C",
+            np.where(
+                state == 1,
+                "30",
+                np.where(state == 2, "60", np.where(state == 3, "90+", "CO")),
+            ),
+        )
+        dpp = np.where(
+            state == 0,
+            0,
+            np.where(
+                state == 1, 30, np.where(state == 2, 60, np.where(state == 3, 90, 120))
+            ),
+        )
 
         lgd_t = np.where(state == 4, 0.88, 0.88)
 
@@ -216,7 +324,16 @@ def _simulate_card_panel(
                 "scheduled_principal": np.zeros(n),
                 "current_principal": bal_t,
                 "current_interest": interest_t,
-                "utilization": np.clip(np.divide(bal_t, credit_limit[:, 0], out=np.zeros_like(bal_t), where=credit_limit[:, 0] != 0), 0.0, 1.0),
+                "utilization": np.clip(
+                    np.divide(
+                        bal_t,
+                        credit_limit[:, 0],
+                        out=np.zeros_like(bal_t),
+                        where=credit_limit[:, 0] != 0,
+                    ),
+                    0.0,
+                    1.0,
+                ),
                 "prepay_flag": prepay_flag,
                 "days_past_due": dpp.astype(int),
                 "roll_rate_bucket": roll_bucket,
@@ -241,7 +358,7 @@ def generate_dataset(
     months: int,
     macro: pd.DataFrame,
     seed: int | None = 12345,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     borrowers = generate_borrowers(num_borrowers, seed=seed)
     loans = generate_loans(borrowers, seed=seed)
     panel = _simulate_card_panel(loans, macro, months=months, seed=seed)

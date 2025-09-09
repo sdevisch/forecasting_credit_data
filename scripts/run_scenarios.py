@@ -9,15 +9,27 @@ import yaml  # type: ignore
 import pandas as pd
 
 from credit_data.macro import get_macro_data
-from credit_data.generator import generate_borrowers, generate_loans, _simulate_card_panel
+from credit_data.generator import (
+    generate_borrowers,
+    generate_loans,
+    _simulate_card_panel,
+)
 from credit_data.products.auto import generate_auto_loans, simulate_auto_panel
-from credit_data.products.personal import generate_personal_loans, simulate_personal_panel
-from credit_data.products.mortgage import generate_mortgage_loans, simulate_mortgage_panel
+from credit_data.products.personal import (
+    generate_personal_loans,
+    simulate_personal_panel,
+)
+from credit_data.products.mortgage import (
+    generate_mortgage_loans,
+    simulate_mortgage_panel,
+)
 from credit_data.products.heloc import generate_heloc_loans, simulate_heloc_panel
 from credit_data.cecl import compute_monthly_ecl, compute_portfolio_aggregates
 
 
-def adjust_macro(df: pd.DataFrame, unemployment_add: float = 0.0, hpi_yoy_add: float = 0.0) -> pd.DataFrame:
+def adjust_macro(
+    df: pd.DataFrame, unemployment_add: float = 0.0, hpi_yoy_add: float = 0.0
+) -> pd.DataFrame:
     out = df.copy()
     if "unemployment" in out.columns:
         out["unemployment"] = out["unemployment"] + float(unemployment_add)
@@ -26,9 +38,13 @@ def adjust_macro(df: pd.DataFrame, unemployment_add: float = 0.0, hpi_yoy_add: f
     return out
 
 
-def run_scenario(name: str, n_borrowers: int, months: int, macro_adj: dict, out_root: str) -> str:
+def run_scenario(
+    name: str, n_borrowers: int, months: int, macro_adj: dict, out_root: str
+) -> str:
     macro = get_macro_data("2019-01-01", "2024-12-01")
-    macro = adjust_macro(macro, macro_adj.get("unemployment_add", 0.0), macro_adj.get("hpi_yoy_add", 0.0))
+    macro = adjust_macro(
+        macro, macro_adj.get("unemployment_add", 0.0), macro_adj.get("hpi_yoy_add", 0.0)
+    )
 
     borrowers = generate_borrowers(n_borrowers)
     card_loans = generate_loans(borrowers)
@@ -73,13 +89,19 @@ def run_scenario(name: str, n_borrowers: int, months: int, macro_adj: dict, out_
         portfolio_list.append(p)
 
     portfolio_all = pd.concat(portfolio_list, ignore_index=True)
-    portfolio_all.to_parquet(os.path.join(out_dir, "portfolio_aggregates_by_product.parquet"))
+    portfolio_all.to_parquet(
+        os.path.join(out_dir, "portfolio_aggregates_by_product.parquet")
+    )
     return out_dir
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run multi-product scenarios and CECL portfolio aggregates")
-    parser.add_argument("--config", type=str, required=True, help="YAML file with scenarios config")
+    parser = argparse.ArgumentParser(
+        description="Run multi-product scenarios and CECL portfolio aggregates"
+    )
+    parser.add_argument(
+        "--config", type=str, required=True, help="YAML file with scenarios config"
+    )
     args = parser.parse_args()
 
     with open(args.config, "r") as f:

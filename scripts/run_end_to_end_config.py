@@ -15,7 +15,9 @@ def run(cmd: list[str]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run end-to-end pipeline from YAML config")
+    parser = argparse.ArgumentParser(
+        description="Run end-to-end pipeline from YAML config"
+    )
     parser.add_argument("--config", type=str, required=True)
     args = parser.parse_args()
 
@@ -33,7 +35,14 @@ def main() -> None:
 
     for step in steps:
         if step == "generate_multiproduct_sample":
-            gen_cmd = [sys.executable, "scripts/generate_multiproduct_sample.py", "--n_borrowers", str(n_borrowers), "--months", str(months)]
+            gen_cmd = [
+                sys.executable,
+                "scripts/generate_multiproduct_sample.py",
+                "--n_borrowers",
+                str(n_borrowers),
+                "--months",
+                str(months),
+            ]
             if products:
                 if isinstance(products, list):
                     products_arg = ",".join(products)
@@ -43,11 +52,25 @@ def main() -> None:
             if partitioned:
                 gen_cmd += ["--partitioned"]
             run(gen_cmd)
-            latest = sorted([p for p in os.listdir("data/processed") if p.startswith("sample_multi_")], reverse=True)[0]
+            latest = sorted(
+                [
+                    p
+                    for p in os.listdir("data/processed")
+                    if p.startswith("sample_multi_")
+                ],
+                reverse=True,
+            )[0]
             dataset_dir = os.path.join("data/processed", latest)
         elif step == "run_cecl_multiproduct":
             assert dataset_dir is not None, "Run generate step first"
-            run([sys.executable, "scripts/run_cecl_multiproduct.py", "--input", dataset_dir])
+            run(
+                [
+                    sys.executable,
+                    "scripts/run_cecl_multiproduct.py",
+                    "--input",
+                    dataset_dir,
+                ]
+            )
         elif step == "build_features":
             assert dataset_dir is not None, "Run generate step first"
             run([sys.executable, "scripts/build_features.py", "--input", dataset_dir])

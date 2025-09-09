@@ -4,13 +4,29 @@ from __future__ import annotations
 import argparse
 import os
 
-from credit_data.reporting import coverage_by_product, monthly_summary_overall, vintage_summary
+from credit_data.reporting import (
+    coverage_by_product,
+    monthly_summary_overall,
+    vintage_summary,
+)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate portfolio coverage and vintage reports")
-    parser.add_argument("--input", type=str, required=True, help="Dataset folder (with cecl_multi and loan files)")
-    parser.add_argument("--out", type=str, default=None, help="Output folder for CSV reports; defaults to <input>/reports")
+    parser = argparse.ArgumentParser(
+        description="Generate portfolio coverage and vintage reports"
+    )
+    parser.add_argument(
+        "--input",
+        type=str,
+        required=True,
+        help="Dataset folder (with cecl_multi and loan files)",
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default=None,
+        help="Output folder for CSV reports; defaults to <input>/reports",
+    )
     args = parser.parse_args()
 
     in_dir = args.input

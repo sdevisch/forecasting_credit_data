@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -68,8 +67,16 @@ def map_borrowers(df: pd.DataFrame) -> pd.DataFrame:
             out[our_col] = df[lc_col]
         else:
             out[our_col] = pd.NA
-    out["employment_tenure_months"] = df.get("emp_length", pd.Series([pd.NA] * len(df))).apply(_clean_emp_length)
-    out["fico_baseline"] = df.get("fico_range_high", pd.Series([pd.NA] * len(df))).fillna(680).astype(float).round().astype("Int64")
+    out["employment_tenure_months"] = df.get(
+        "emp_length", pd.Series([pd.NA] * len(df))
+    ).apply(_clean_emp_length)
+    out["fico_baseline"] = (
+        df.get("fico_range_high", pd.Series([pd.NA] * len(df)))
+        .fillna(680)
+        .astype(float)
+        .round()
+        .astype("Int64")
+    )
     out["credit_utilization_baseline"] = pd.NA
     out["prior_delinquencies"] = pd.NA
     out["bank_tenure_months"] = pd.NA
@@ -87,12 +94,22 @@ def map_loans(df: pd.DataFrame) -> pd.DataFrame:
             out[our_col] = pd.NA
     out["product"] = "personal"
     out["origination_dt"] = pd.to_datetime(out["origination_dt"], errors="coerce")
-    out["maturity_months"] = df.get("term", pd.Series([pd.NA] * len(df))).apply(_clean_term)
-    out["interest_rate"] = df.get("int_rate", pd.Series([pd.NA] * len(df))).apply(_clean_int_rate)
+    out["maturity_months"] = df.get("term", pd.Series([pd.NA] * len(df))).apply(
+        _clean_term
+    )
+    out["interest_rate"] = df.get("int_rate", pd.Series([pd.NA] * len(df))).apply(
+        _clean_int_rate
+    )
     out["secured_flag"] = False
     out["ltv_at_orig"] = pd.NA
     out["risk_grade"] = df.get("grade", pd.Series([pd.NA] * len(df)))
-    out["underwriting_fico"] = df.get("fico_range_high", pd.Series([pd.NA] * len(df))).fillna(680).astype(float).round().astype("Int64")
+    out["underwriting_fico"] = (
+        df.get("fico_range_high", pd.Series([pd.NA] * len(df)))
+        .fillna(680)
+        .astype(float)
+        .round()
+        .astype("Int64")
+    )
     out["channel"] = pd.NA
     out["vintage"] = out["origination_dt"].dt.to_period("M").astype(str)
     out["credit_limit"] = pd.NA
