@@ -12,3 +12,5 @@ PyYAML>=6.0
 streamlit>=1.36
 mypy>=1.10
 pytest>=8.0
+ruff>=0.6.3
+pre-commit>=3.8.0
